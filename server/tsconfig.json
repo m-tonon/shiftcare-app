@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "lib": ["ES2020"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "..",
     "strict": true,
     "noImplicitAny": true,
     "esModuleInterop": true,
@@ -15,6 +15,6 @@
       "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src", "../shared"],
+  "include": ["src", "../shared", "prisma"],
   "exclude": ["node_modules", "dist"]
 }
