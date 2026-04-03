@@ -1,7 +1,5 @@
+import HomePage from './pages/HomePage';
+
 export default function App() {
-  return (
-    <div>
-      <h1>ShiftCare</h1>
-    </div>
-  );
+  return <HomePage />;
 }
