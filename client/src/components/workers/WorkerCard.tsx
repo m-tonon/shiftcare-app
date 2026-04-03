@@ -1,13 +1,15 @@
 import { Worker } from '@shared/types';
-import {
-  ROLE_AVATAR_BG,
-  ROLE_COLORS,
-  ROLE_LABELS,
-} from '../../constants/roles.constants';
+import { ROLE_STYLES, ROLE_LABELS } from '../../constants/roles.constants';
 
 interface Props {
   worker: Worker;
 }
+
+const AVAILABILITY_BADGE: Record<string, string> = {
+  AVAILABLE: '',
+  SICK: 'bg-danger-bg text-danger border-danger-border',
+  LEAVE: 'bg-warning-bg text-warning border-warning-border',
+};
 
 export function WorkerCard({ worker }: Props) {
   const initials = worker.name
@@ -17,33 +19,31 @@ export function WorkerCard({ worker }: Props) {
     .map((p) => p[0])
     .join('');
 
-  const colors = ROLE_COLORS[worker.role];
-  const avatarBg = ROLE_AVATAR_BG[worker.role];
+  const styles = ROLE_STYLES[worker.role];
 
   return (
-    <div
-      className={`flex items-center gap-3 p-3 rounded-lg border ${colors.border} ${colors.bg}`}
-    >
+    <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-surface transition-colors group">
+      {/* Avatar */}
       <div
-        className={`w-9 h-9 rounded-full ${avatarBg} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}
+        className={`w-8 h-8 rounded-full ${styles.avatarBg} flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 shadow-sm`}
       >
         {initials}
       </div>
 
-      <div className="min-w-0">
-        <p className={`text-sm font-medium truncate ${colors.text}`}>
+      {/* Info */}
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-medium text-foreground truncate leading-tight">
           {worker.name}
         </p>
-        <p className="text-xs text-gray-500">{ROLE_LABELS[worker.role]}</p>
+        <p className={`text-[11px] font-medium ${styles.chipText}`}>
+          {ROLE_LABELS[worker.role]}
+        </p>
       </div>
 
+      {/* Availability badge */}
       {worker.availability !== 'AVAILABLE' && (
         <span
-          className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
-            worker.availability === 'SICK'
-              ? 'bg-red-100 text-red-700'
-              : 'bg-yellow-100 text-yellow-700'
-          }`}
+          className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${AVAILABILITY_BADGE[worker.availability]}`}
         >
           {worker.availability}
         </span>

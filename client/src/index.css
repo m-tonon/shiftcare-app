@@ -1,116 +1,132 @@
-@import "@fontsource-variable/geist";
+@import '@fontsource-variable/geist';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  /* Brand */
+  --primary: #0f62fe;
+  --primary-hover: #0353e9;
+  --primary-foreground: #ffffff;
+
+  /* Neutrals */
+  --background: #ffffff;
+  --surface: #f8f9fa;
+  --surface-raised: #ffffff;
+  --border: #e4e7ec;
+  --border-subtle: #f0f2f5;
+
+  /* Text */
+  --foreground: #101828;
+  --muted-foreground: #667085;
+  --subtle-foreground: #98a2b3;
+
+  /* Status */
+  --success: #12b76a;
+  --success-bg: #ecfdf3;
+  --success-border: #a9efc5;
+  --warning: #f79009;
+  --warning-bg: #fffaeb;
+  --warning-border: #fedf89;
+  --danger: #f04438;
+  --danger-bg: #fef3f2;
+  --danger-border: #fda29b;
+
+  /* Role chips */
+  --role-doctor-bg: #eff8ff;
+  --role-doctor-text: #1570ef;
+  --role-doctor-border: #b2ddff;
+  --role-doctor-avatar: #2e90fa;
+
+  --role-nurse-bg: #f6fef9;
+  --role-nurse-text: #067647;
+  --role-nurse-border: #abefc6;
+  --role-nurse-avatar: #17b26a;
+
+  --role-receptionist-bg: #f5f3ff;
+  --role-receptionist-text: #5925dc;
+  --role-receptionist-border: #d9d6fe;
+  --role-receptionist-avatar: #7a5af8;
+
+  --role-technician-bg: #fff6ed;
+  --role-technician-text: #c4320a;
+  --role-technician-border: #f9dbaf;
+  --role-technician-avatar: #ef6820;
+
+  --role-pharmacist-bg: #f0fdf9;
+  --role-pharmacist-text: #107569;
+  --role-pharmacist-border: #99f6e0;
+  --role-pharmacist-avatar: #15b79e;
+
+  --role-cleaning-bg: #f8f9fa;
+  --role-cleaning-text: #475467;
+  --role-cleaning-border: #d0d5dd;
+  --role-cleaning-avatar: #667085;
+
+  --schedule-canvas: #e8eaef;
+  --shift-morning-bg: #ebe8e4;
+  --shift-morning-border: #d4cfc6;
+  --shift-afternoon-bg: #e4e6ea;
+  --shift-afternoon-border: #c1c6cf;
+  --shift-evening-bg: #dadfe7;
+  --shift-evening-border: #a8b0bf;
+
+  /* Misc */
+  --radius: 0.5rem;
+  --shadow-sm: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+    0 1px 3px 0 rgba(16, 24, 40, 0.1), 0 1px 2px -1px rgba(16, 24, 40, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  font-family:
+    'Geist Variable',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  width: 100%;
+  height: 100svh;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--subtle-foreground);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+/* Hide scrollbar but keep scrollability */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

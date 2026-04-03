@@ -1,5 +1,5 @@
 import { Worker } from '@shared/types';
-import { ROLE_AVATAR_BG, ROLE_COLORS } from '../../constants/roles.constants';
+import { ROLE_STYLES } from '../../constants/roles.constants';
 
 interface Props {
   worker: Worker;
@@ -13,21 +13,18 @@ export function WorkerChip({ worker }: Props) {
     .map((p) => p[0])
     .join('');
 
-  const colors = ROLE_COLORS[worker.role];
-  const avatarBg = ROLE_AVATAR_BG[worker.role];
+  const styles = ROLE_STYLES[worker.role];
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs ${colors.bg} ${colors.border}`}
+      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[11px] font-medium ${styles.chipBg} ${styles.chipBorder} ${styles.chipText}`}
     >
-      <div
-        className={`w-5 h-5 rounded-full ${avatarBg} flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}
+      <span
+        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0 ${styles.avatarBg}`}
       >
         {initials}
-      </div>
-      <span className={`font-medium truncate max-w-[100px] ${colors.text}`}>
-        {worker.name}
       </span>
+      <span className="truncate max-w-[80px]">{worker.name.split(' ')[0]}</span>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Worker, Role } from '@shared/types';
 import { WorkerCard } from './WorkerCard';
-import { ROLE_LABELS } from '../../constants/roles.constants';
+import { ROLE_LABELS, ROLE_STYLES } from '../../constants/roles.constants';
+import { Users } from 'lucide-react';
 
 interface Props {
   workers: Worker[];
@@ -16,26 +17,48 @@ const ROLE_ORDER: Role[] = [
 ];
 
 export function WorkerRoster({ workers }: Props) {
+  const available = workers.filter(
+    (w) => w.availability === 'AVAILABLE',
+  ).length;
+
   return (
-    <aside className="w-72 flex-shrink-0 bg-white border-l border-gray-200 overflow-y-auto">
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="font-semibold text-gray-800">Staff Roster</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {workers.length} total staff
+    <div className="flex flex-col overflow-hidden h-full">
+      {/* Header */}
+      <div className="flex-shrink-0 px-4 py-3.5 border-b border-border">
+        <div className="flex items-center gap-2 mb-0.5">
+          <Users size={14} className="text-muted-foreground" />
+          <h2 className="text-[13px] font-semibold text-foreground">
+            Staff Roster
+          </h2>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          {available}/{workers.length} available
         </p>
       </div>
 
-      <div className="p-3 space-y-4">
+      {/* List */}
+      <div className="flex-1 overflow-y-auto py-2">
         {ROLE_ORDER.map((role) => {
           const group = workers.filter((w) => w.role === role);
           if (!group.length) return null;
+          const styles = ROLE_STYLES[role];
           return (
-            <div key={role}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                {ROLE_LABELS[role]} ({group.length})
-              </p>
+            <div key={role} className="mb-1">
+              {/* Role group label */}
+              <div className="flex items-center gap-2 px-3 py-1.5">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${styles.avatarBg}`}
+                />
+                <span className="text-[10px] font-semibold text-subtle uppercase tracking-wider">
+                  {ROLE_LABELS[role]}
+                </span>
+                <span className="text-[10px] text-subtle ml-auto">
+                  {group.length}
+                </span>
+              </div>
 
-              <div className="space-y-1.5">
+              {/* Workers */}
+              <div>
                 {group.map((w) => (
                   <WorkerCard key={w.id} worker={w} />
                 ))}
@@ -44,6 +67,6 @@ export function WorkerRoster({ workers }: Props) {
           );
         })}
       </div>
-    </aside>
+    </div>
   );
 }
