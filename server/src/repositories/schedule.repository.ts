@@ -15,8 +15,6 @@ export const scheduleRepository = {
       include: { worker: true },
     }),
 
-  findShiftRules: () => prisma.shiftRule.findMany(),
-
   createSlot: (date: string, shift: string, workerId: number) =>
     prisma.scheduleSlot.upsert({
       where: { date_shift_workerId: { date, shift, workerId } },

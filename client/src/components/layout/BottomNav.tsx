@@ -1,6 +1,6 @@
-import { CalendarDays, Plus, Users } from 'lucide-react';
+import { CalendarDays, Users } from 'lucide-react';
 
-export type Page = 'schedule' | 'add-schedule' | 'team';
+export type Page = 'schedule' | 'team';
 
 interface Props {
   activePage: Page;
@@ -9,7 +9,6 @@ interface Props {
 
 const TABS: { page: Page; label: string; Icon: typeof CalendarDays }[] = [
   { page: 'schedule', label: 'Schedule', Icon: CalendarDays },
-  { page: 'add-schedule', label: 'Add Shifts', Icon: Plus },
   { page: 'team', label: 'Team', Icon: Users },
 ];
 

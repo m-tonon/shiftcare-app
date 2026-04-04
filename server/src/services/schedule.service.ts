@@ -1,6 +1,9 @@
 import { scheduleRepository } from '../repositories/schedule.repository';
 import { workerRepository } from '../repositories/worker.repository';
-import { SHIFT_NAMES } from '../constants/schedule.constants';
+import {
+  SHIFT_NAMES,
+  getShiftRulesForDate,
+} from '../constants/schedule.constants';
 import {
   DaySchedule,
   WeekSchedule,
@@ -103,9 +106,8 @@ export const scheduleService = {
   getWeekSchedule: async (weekOffset = 0): Promise<WeekSchedule> => {
     const dates = getWeekDates(weekOffset);
 
-    const [slots, rules, overrideMap] = await Promise.all([
+    const [slots, overrideMap] = await Promise.all([
       scheduleRepository.findByDateRange(dates),
-      scheduleRepository.findShiftRules(),
       loadOverrideMap(dates),
     ]);
 
@@ -116,40 +118,43 @@ export const scheduleService = {
       slotsByDateShift.get(key)!.push(s);
     }
 
-    const rulesByShift = new Map<string, typeof rules>();
-    for (const r of rules) {
-      if (!rulesByShift.has(r.shift)) rulesByShift.set(r.shift, []);
-      rulesByShift.get(r.shift)!.push(r);
-    }
+    const days: DaySchedule[] = dates.map((date) => {
+      const rulesForDate = getShiftRulesForDate(date);
+      const rulesByShift = new Map<string, typeof rulesForDate>();
+      for (const r of rulesForDate) {
+        if (!rulesByShift.has(r.shift)) rulesByShift.set(r.shift, []);
+        rulesByShift.get(r.shift)!.push(r);
+      }
 
-    const days: DaySchedule[] = dates.map((date) => ({
-      date,
-      dayLabel: getDayLabel(date),
-      shifts: SHIFT_NAMES.map((shift) => {
-        const shiftSlots = slotsByDateShift.get(`${date}-${shift}`) ?? [];
-        const shiftRules = rulesByShift.get(shift) ?? [];
+      return {
+        date,
+        dayLabel: getDayLabel(date),
+        shifts: SHIFT_NAMES.map((shift) => {
+          const shiftSlots = slotsByDateShift.get(`${date}-${shift}`) ?? [];
+          const shiftRules = rulesByShift.get(shift) ?? [];
 
-        const requiredCount = shiftRules.reduce(
-          (sum, r) =>
-            sum +
-            effectiveRequired(
-              date,
-              shift,
-              r.role,
-              r.requiredCount,
-              overrideMap,
-            ),
-          0,
-        );
+          const requiredCount = shiftRules.reduce(
+            (sum, r) =>
+              sum +
+              effectiveRequired(
+                date,
+                shift,
+                r.role,
+                r.requiredCount,
+                overrideMap,
+              ),
+            0,
+          );
 
-        return {
-          shift,
-          slots: shiftSlots.map(mapSlot),
-          requiredCount,
-          isUnderstaffed: shiftSlots.length < requiredCount,
-        };
-      }),
-    }));
+          return {
+            shift,
+            slots: shiftSlots.map(mapSlot),
+            requiredCount,
+            isUnderstaffed: shiftSlots.length < requiredCount,
+          };
+        }),
+      };
+    });
 
     return { days };
   },
@@ -158,10 +163,8 @@ export const scheduleService = {
     const dates = [date];
     const overrideMap = await loadOverrideMap(dates);
 
-    const [rules, existing] = await Promise.all([
-      scheduleRepository.findShiftRules(),
-      scheduleRepository.findByDateAndShift(date, shift),
-    ]);
+    const rules = getShiftRulesForDate(date).filter((r) => r.shift === shift);
+    const existing = await scheduleRepository.findByDateAndShift(date, shift);
 
     const existingWorkerIds = new Set(existing.map((s) => s.workerId));
 
@@ -173,7 +176,7 @@ export const scheduleService = {
 
     let filled = 0;
 
-    for (const rule of rules.filter((r) => r.shift === shift)) {
+    for (const rule of rules) {
       const need = effectiveRequired(
         date,
         shift,

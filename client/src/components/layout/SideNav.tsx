@@ -1,4 +1,4 @@
-import { CalendarDays, Plus, Users } from 'lucide-react';
+import { CalendarDays, Users } from 'lucide-react';
 import type { Page } from './BottomNav';
 
 interface Props {
@@ -8,7 +8,6 @@ interface Props {
 
 const NAV_ITEMS: { page: Page; label: string; Icon: typeof CalendarDays }[] = [
   { page: 'schedule', label: 'Schedule', Icon: CalendarDays },
-  { page: 'add-schedule', label: 'Add Shifts', Icon: Plus },
   { page: 'team', label: 'Team', Icon: Users },
 ];
 

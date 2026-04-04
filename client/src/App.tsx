@@ -5,7 +5,6 @@ import { SideNav } from './components/layout/SideNav';
 import { ChatFAB } from './components/layout/ChatFAB';
 import { ChatDrawer } from './components/layout/ChatDrawer';
 import SchedulePage from './pages/SchedulePage';
-import AddSchedulePage from './pages/AddSchedulePage';
 import TeamPage from './pages/TeamPage';
 import LoginPage from './pages/LoginPage';
 import type { Page } from './components/layout/BottomNav';
@@ -80,7 +79,6 @@ function AppShell() {
         {/* Page content */}
         <main className="flex-1 overflow-hidden bg-background">
           {activePage === 'schedule' && <SchedulePage key={scheduleKey} />}
-          {activePage === 'add-schedule' && <AddSchedulePage />}
           {activePage === 'team' && <TeamPage />}
         </main>
       </div>
