@@ -1,4 +1,3 @@
-````markdown
 # ShiftCare
 
 A responsive staff scheduling platform for care teams, built to run on both desktop and mobile — optimized for phone use on the floor.
@@ -67,4 +66,3 @@ The built-in chat understands natural language commands. Some examples:
 | `npm run db:reset` | Wipes all data and re-seeds from scratch       |
 
 > `db:reset` runs `prisma db push --force-reset` followed by `prisma db seed` — no need to delete `dev.db` manually.
-````
