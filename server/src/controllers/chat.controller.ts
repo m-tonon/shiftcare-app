@@ -16,7 +16,7 @@ export const chatController = {
         ? Math.trunc(rawOffset)
         : 0;
 
-    const response = await chatService.handleMessage(message, weekOffset);
+    const response = await chatService.processMessage(message, weekOffset);
     res.json(response);
   },
 };
