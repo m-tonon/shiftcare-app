@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import { useSchedule } from '../hooks/useSchedule';
 import { ScheduleGrid } from '../components/schedule/ScheduleGrid';
-import { scheduleDayElementId } from '../components/schedule/ScheduleCell';
 import { getLocalDateString } from '../utils/date.utils';
+import { useScheduleView } from '../contexts/ScheduleViewContext';
 
 function getWeekLabel(weekOffset: number): string {
   const now = new Date();
@@ -27,22 +27,48 @@ function getWeekLabel(weekOffset: number): string {
 }
 
 export default function SchedulePage() {
-  const [weekOffset, setWeekOffset] = useState(0);
+  const { weekOffset, setWeekOffset, setSelectedDayIndex } = useScheduleView();
   const [pendingScrollToToday, setPendingScrollToToday] = useState(false);
-  const { schedule, loading, error, refresh } = useSchedule(weekOffset);
+  const [pendingScrollToMonday, setPendingScrollToMonday] = useState(false);
+  const { schedule, loading, error, refresh, removeSlot } = useSchedule(weekOffset);
+  const prevWeekOffset = useRef(weekOffset);
 
   const isCurrentWeek = weekOffset === 0;
 
   const scrollTodayIntoView = useCallback(() => {
-    const el = document.getElementById(
-      scheduleDayElementId(getLocalDateString()),
-    );
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+    if (!schedule) return;
+
+    const todayDate = getLocalDateString();
+    const todayIndex = schedule.days.findIndex((d) => d.date === todayDate);
+
+    if (todayIndex !== -1) {
+      setSelectedDayIndex(todayIndex);
+
+      const container = document.querySelector('.schedule-scroll-container') as HTMLElement | null;
+      if (container) {
+        const dayEl = container.querySelector(`[data-day-date="${todayDate}"]`) as HTMLElement | null;
+        if (dayEl) {
+          const containerRect = container.getBoundingClientRect();
+          const dayRect = dayEl.getBoundingClientRect();
+          const scrollLeft = dayRect.left - containerRect.left + container.scrollLeft;
+          container.scrollTo({ left: scrollLeft, behavior: 'auto' });
+        }
+      }
+    }
+  }, [schedule, setSelectedDayIndex]);
+
+  const scrollToMonday = useCallback(() => {
+    const container = document.querySelector('.schedule-scroll-container') as HTMLElement | null;
+    if (container) {
+      container.scrollTo({ left: 0, behavior: 'auto' });
+    }
+    setSelectedDayIndex(0);
+  }, [setSelectedDayIndex]);
 
   const jumpToThisWeek = useCallback(() => {
+    setPendingScrollToToday(true);
     setWeekOffset(0);
-  }, []);
+  }, [setWeekOffset]);
 
   const jumpToToday = useCallback(() => {
     if (weekOffset !== 0) {
@@ -51,7 +77,16 @@ export default function SchedulePage() {
       return;
     }
     scrollTodayIntoView();
-  }, [weekOffset, scrollTodayIntoView]);
+  }, [weekOffset, scrollTodayIntoView, setWeekOffset]);
+
+  useEffect(() => {
+    if (weekOffset !== prevWeekOffset.current) {
+      if (weekOffset !== 0) {
+        setPendingScrollToMonday(true);
+      }
+      prevWeekOffset.current = weekOffset;
+    }
+  }, [weekOffset]);
 
   useEffect(() => {
     if (!pendingScrollToToday || loading || !schedule) return;
@@ -63,6 +98,17 @@ export default function SchedulePage() {
     });
     return () => window.cancelAnimationFrame(id);
   }, [pendingScrollToToday, schedule, loading, scrollTodayIntoView]);
+
+  useEffect(() => {
+    if (!pendingScrollToMonday || loading || !schedule) return;
+    setPendingScrollToMonday(false);
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        scrollToMonday();
+      });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [pendingScrollToMonday, schedule, loading, scrollToMonday]);
 
   return (
     <div className="flex flex-col h-full bg-[var(--schedule-canvas)]">
@@ -170,7 +216,7 @@ export default function SchedulePage() {
       </header>
 
       <div className="flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto px-4 py-6 sm:px-5 sm:py-8 pb-28 sm:pb-10 lg:max-w-none lg:mx-0 lg:px-8 lg:py-8 xl:max-w-[1920px] xl:mx-auto xl:px-10 2xl:max-w-[2200px] 2xl:px-12">
+        <div className="max-w-6xl mx-auto px-4 py-4 pb-28 sm:px-5 sm:py-8 sm:pb-10 lg:max-w-none lg:mx-0 lg:px-8 lg:py-8 xl:max-w-[1920px] xl:mx-auto xl:px-10 2xl:max-w-[2200px] 2xl:px-12">
           {error && (
             <div
               className="mb-5 rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-[14px] text-danger font-medium"
@@ -190,7 +236,7 @@ export default function SchedulePage() {
             </div>
           )}
 
-          {schedule && <ScheduleGrid schedule={schedule} />}
+          {schedule && <ScheduleGrid schedule={schedule} onRemoveSlot={removeSlot} />}
 
           {!loading && !schedule && !error && (
             <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center px-6 rounded-2xl border border-dashed border-border bg-background py-12">

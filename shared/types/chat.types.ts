@@ -1,15 +1,17 @@
-export type MessageRole = "user" | "assistant";
+export type MessageRole = 'user' | 'assistant';
 
 export type ScheduleActionType =
-  | "FILL_SHIFT"
-  | "FILL_DAY"
-  | "FILL_WEEK"
-  | "SWAP_WORKER"
-  | "CLEAR_SHIFT"
-  | "SHOW_WORKERS"
-  | "SHOW_GAPS"
-  | "LIST_AVAILABLE"
-  | "UNKNOWN";
+  | 'FILL_SHIFT'
+  | 'FILL_DAY'
+  | 'FILL_WEEK'
+  | 'SWAP_WORKER'
+  | 'CLEAR_SHIFT'
+  | 'SHOW_WORKERS'
+  | 'SHOW_GAPS'
+  | 'LIST_AVAILABLE'
+  | 'SET_REQUIREMENT'
+  | 'CLEAR_SHIFT_OVERRIDES'
+  | 'UNKNOWN';
 
 export interface ScheduleAction {
   type: ScheduleActionType;
@@ -28,6 +30,7 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   message: string;
+  weekOffset?: number;
 }
 
 export interface ChatResponse {

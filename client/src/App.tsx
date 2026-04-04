@@ -9,8 +9,13 @@ import AddSchedulePage from './pages/AddSchedulePage';
 import TeamPage from './pages/TeamPage';
 import LoginPage from './pages/LoginPage';
 import type { Page } from './components/layout/BottomNav';
+import {
+  ScheduleViewProvider,
+  useScheduleView,
+} from './contexts/ScheduleViewContext';
 
-export default function App() {
+function AppShell() {
+  const { weekOffset } = useScheduleView();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<Page>('schedule');
   const [chatOpen, setChatOpen] = useState(false);
@@ -26,7 +31,7 @@ export default function App() {
     messages,
     loading: chatLoading,
     send,
-  } = useChat(handleScheduleUpdate);
+  } = useChat(handleScheduleUpdate, weekOffset);
 
   const hasUnread = !chatOpen && messages.length > 1;
 
@@ -95,5 +100,13 @@ export default function App() {
         onSend={send}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ScheduleViewProvider>
+      <AppShell />
+    </ScheduleViewProvider>
   );
 }

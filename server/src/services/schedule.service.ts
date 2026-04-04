@@ -9,16 +9,23 @@ import {
   Availability,
 } from '@shared/types';
 
-function getWeekDates(): string[] {
+function getLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getWeekDates(weekOffset = 0): string[] {
   const today = new Date();
-  const day = today.getDay();
+  const dow = today.getDay();
   const monday = new Date(today);
-  monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1) + weekOffset * 7);
 
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    return d.toISOString().split('T')[0];
+    return getLocalYmd(d);
   });
 }
 
@@ -28,28 +35,80 @@ function getDayLabel(date: string): string {
   });
 }
 
-function mapSlot(s: any) {
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function mapSlot(s: {
+  id: number;
+  date: string;
+  shift: string;
+  workerId: number;
+  worker: {
+    id: number;
+    name: string;
+    role: string;
+    availability: string;
+  } | null;
+}) {
+  const w = s.worker;
   return {
-    ...s,
+    id: s.id,
+    date: s.date,
     shift: s.shift as ShiftName,
-    worker: s.worker && {
-      ...s.worker,
-      role: s.worker.role as Role,
-      availability: s.worker.availability as Availability,
-    },
+    workerId: s.workerId,
+    worker:
+      w === null
+        ? undefined
+        : {
+            ...w,
+            role: w.role as Role,
+            availability: w.availability as Availability,
+          },
   };
 }
 
-export const scheduleService = {
-  getWeekSchedule: async (): Promise<WeekSchedule> => {
-    const dates = getWeekDates();
+function overrideKey(date: string, shift: string, role: string): string {
+  return `${date}|${shift}|${role}`;
+}
 
-    const [slots, rules] = await Promise.all([
+async function loadOverrideMap(dates: string[]): Promise<Map<string, number>> {
+  const rows = await scheduleRepository.findOverridesInDates(dates);
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    m.set(overrideKey(r.date, r.shift, r.role), r.requiredCount);
+  }
+  return m;
+}
+
+function effectiveRequired(
+  date: string,
+  shift: string,
+  role: string,
+  base: number,
+  overrideMap: Map<string, number>,
+): number {
+  const k = overrideKey(date, shift, role);
+  return overrideMap.has(k) ? (overrideMap.get(k) as number) : base;
+}
+
+export const scheduleService = {
+  getWeekDates,
+
+  getWeekSchedule: async (weekOffset = 0): Promise<WeekSchedule> => {
+    const dates = getWeekDates(weekOffset);
+
+    const [slots, rules, overrideMap] = await Promise.all([
       scheduleRepository.findByDateRange(dates),
       scheduleRepository.findShiftRules(),
+      loadOverrideMap(dates),
     ]);
 
-    // Group slots by date+shift
     const slotsByDateShift = new Map<string, typeof slots>();
     for (const s of slots) {
       const key = `${s.date}-${s.shift}`;
@@ -57,7 +116,6 @@ export const scheduleService = {
       slotsByDateShift.get(key)!.push(s);
     }
 
-    // Group rules by shift
     const rulesByShift = new Map<string, typeof rules>();
     for (const r of rules) {
       if (!rulesByShift.has(r.shift)) rulesByShift.set(r.shift, []);
@@ -72,7 +130,15 @@ export const scheduleService = {
         const shiftRules = rulesByShift.get(shift) ?? [];
 
         const requiredCount = shiftRules.reduce(
-          (sum, r) => sum + r.requiredCount,
+          (sum, r) =>
+            sum +
+            effectiveRequired(
+              date,
+              shift,
+              r.role,
+              r.requiredCount,
+              overrideMap,
+            ),
           0,
         );
 
@@ -89,6 +155,9 @@ export const scheduleService = {
   },
 
   fillShift: async (date: string, shift: string): Promise<number> => {
+    const dates = [date];
+    const overrideMap = await loadOverrideMap(dates);
+
     const [rules, existing] = await Promise.all([
       scheduleRepository.findShiftRules(),
       scheduleRepository.findByDateAndShift(date, shift),
@@ -96,7 +165,6 @@ export const scheduleService = {
 
     const existingWorkerIds = new Set(existing.map((s) => s.workerId));
 
-    // Group existing by role
     const existingByRole = new Map<string, number>();
     for (const s of existing) {
       const role = s.worker.role;
@@ -106,18 +174,28 @@ export const scheduleService = {
     let filled = 0;
 
     for (const rule of rules.filter((r) => r.shift === shift)) {
-      const available = await workerRepository.findAvailableByRole(rule.role);
-
-      const needed = rule.requiredCount - (existingByRole.get(rule.role) ?? 0);
-
-      if (needed <= 0) continue;
-
-      const availableFiltered = available.filter(
-        (w) => !existingWorkerIds.has(w.id),
+      const need = effectiveRequired(
+        date,
+        shift,
+        rule.role,
+        rule.requiredCount,
+        overrideMap,
       );
 
-      for (const worker of availableFiltered.slice(0, needed)) {
+      const have = existingByRole.get(rule.role) ?? 0;
+      const toAdd = need - have;
+
+      if (toAdd <= 0) continue;
+
+      const available = await workerRepository.findAvailableByRole(rule.role);
+      const availableFiltered = shuffleArray(
+        available.filter((w) => !existingWorkerIds.has(w.id)),
+      );
+
+      for (const worker of availableFiltered.slice(0, toAdd)) {
         await scheduleRepository.createSlot(date, shift, worker.id);
+        existingWorkerIds.add(worker.id);
+        existingByRole.set(rule.role, (existingByRole.get(rule.role) ?? 0) + 1);
         filled++;
       }
     }
@@ -133,8 +211,8 @@ export const scheduleService = {
     return results.reduce((sum, r) => sum + r, 0);
   },
 
-  fillWeek: async (): Promise<number> => {
-    const dates = getWeekDates();
+  fillWeek: async (weekOffset = 0): Promise<number> => {
+    const dates = getWeekDates(weekOffset);
 
     const results = await Promise.all(
       dates.map((date) => scheduleService.fillDay(date)),
@@ -147,5 +225,100 @@ export const scheduleService = {
     await scheduleRepository.clearShift(date, shift);
   },
 
-  getWeekDates,
+  setRequirementOverride: async (
+    date: string,
+    shift: string,
+    role: string,
+    requiredCount: number,
+  ): Promise<void> => {
+    await scheduleRepository.upsertOverride(date, shift, role, requiredCount);
+  },
+
+  clearRequirementOverridesForShift: async (
+    date: string,
+    shift: string,
+  ): Promise<number> => {
+    const result = await scheduleRepository.deleteOverridesForDateShift(
+      date,
+      shift,
+    );
+    return result.count;
+  },
+
+  removeWorkerFromSlot: async (slotId: number): Promise<void> => {
+    await scheduleRepository.deleteSlot(slotId);
+  },
+
+  swapWorkerOnShift: async (
+    date: string,
+    shift: string,
+    fromNameQuery: string,
+    toNameQuery: string,
+  ): Promise<{ swapped: boolean; message: string }> => {
+    const fromQ = fromNameQuery.trim().toLowerCase();
+    const toQ = toNameQuery.trim().toLowerCase();
+
+    if (!fromQ || !toQ) {
+      return { swapped: false, message: 'Need both names to swap.' };
+    }
+
+    const existing = await scheduleRepository.findByDateAndShift(date, shift);
+    const slotFrom = existing.find((s) =>
+      s.worker.name.toLowerCase().includes(fromQ),
+    );
+
+    if (!slotFrom) {
+      return {
+        swapped: false,
+        message: `No one matching "${fromNameQuery}" on that shift.`,
+      };
+    }
+
+    const allWorkers = await workerRepository.findAll();
+    const toMatches = allWorkers.filter((w) =>
+      w.name.toLowerCase().includes(toQ),
+    );
+
+    if (toMatches.length === 0) {
+      return {
+        swapped: false,
+        message: `No worker found matching "${toNameQuery}".`,
+      };
+    }
+
+    if (toMatches.length > 1) {
+      const names = toMatches.map((w) => w.name).join(', ');
+      return {
+        swapped: false,
+        message: `Multiple matches for "${toNameQuery}": ${names}. Be more specific.`,
+      };
+    }
+
+    const toWorker = toMatches[0];
+
+    if (toWorker.availability !== 'AVAILABLE') {
+      return {
+        swapped: false,
+        message: `${toWorker.name} is not available (${toWorker.availability}).`,
+      };
+    }
+
+    const alreadyOnShift = existing.some((s) => s.workerId === toWorker.id);
+    if (alreadyOnShift) {
+      return {
+        swapped: false,
+        message: `${toWorker.name} is already on this shift.`,
+      };
+    }
+
+    await scheduleRepository.deleteSlot(slotFrom.id);
+    await scheduleRepository.createSlot(date, shift, toWorker.id);
+
+    const filled = await scheduleService.fillShift(date, shift);
+
+    return {
+      swapped: true,
+      message: `Replaced ${slotFrom.worker.name} with ${toWorker.name}. Filled ${filled} open slot(s) if any.`,
+    };
+  },
 };

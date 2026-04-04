@@ -10,6 +10,7 @@ import { Sun, CloudSun, Moon, type LucideIcon } from 'lucide-react';
 
 interface Props {
   shiftSlots: ShiftSlots;
+  onRemoveSlot?: (slotId: number) => void;
 }
 
 export const SHIFT_ICONS: Record<string, LucideIcon> = {
@@ -58,7 +59,7 @@ function orderedRolesWithSlots(
   return ordered;
 }
 
-export function ShiftCard({ shiftSlots }: Props) {
+export function ShiftCard({ shiftSlots, onRemoveSlot }: Props) {
   const { shift, slots, requiredCount, isUnderstaffed } = shiftSlots;
   const Icon = SHIFT_ICONS[shift];
   const filled = slots.filter((s) => s.worker).length;
@@ -115,7 +116,11 @@ export function ShiftCard({ shiftSlots }: Props) {
               {roleSlots.map((slot) =>
                 slot.worker ? (
                   <li key={slot.id}>
-                    <WorkerRow worker={slot.worker} />
+                    <WorkerRow
+                      worker={slot.worker}
+                      slotId={slot.id}
+                      onRemove={onRemoveSlot}
+                    />
                   </li>
                 ) : null,
               )}

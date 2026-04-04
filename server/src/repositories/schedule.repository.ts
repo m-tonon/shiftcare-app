@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -28,4 +28,28 @@ export const scheduleRepository = {
     prisma.scheduleSlot.deleteMany({ where: { date, shift } }),
 
   deleteSlot: (id: number) => prisma.scheduleSlot.delete({ where: { id } }),
+
+  findOverridesInDates: (dates: string[]) =>
+    prisma.shiftRequirementOverride.findMany({
+      where: { date: { in: dates } },
+    }),
+
+  upsertOverride: (
+    date: string,
+    shift: string,
+    role: string,
+    requiredCount: number,
+  ) =>
+    prisma.shiftRequirementOverride.upsert({
+      where: {
+        date_shift_role: { date, shift, role },
+      },
+      update: { requiredCount },
+      create: { date, shift, role, requiredCount },
+    }),
+
+  deleteOverridesForDateShift: (date: string, shift: string) =>
+    prisma.shiftRequirementOverride.deleteMany({
+      where: { date, shift },
+    }),
 };

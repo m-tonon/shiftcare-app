@@ -20,5 +20,13 @@ export function useSchedule(weekOffset = 0) {
     refresh();
   }, [refresh]);
 
-  return { schedule, loading, error, refresh };
+  const removeSlot = useCallback(
+    async (slotId: number) => {
+      await scheduleService.removeSlot(slotId);
+      refresh();
+    },
+    [refresh],
+  );
+
+  return { schedule, loading, error, refresh, removeSlot };
 }

@@ -8,9 +8,10 @@ export function scheduleDayElementId(date: string): string {
 
 interface Props {
   day: DaySchedule;
+  onRemoveSlot?: (slotId: number) => void;
 }
 
-export function ScheduleCell({ day }: Props) {
+export function ScheduleCell({ day, onRemoveSlot }: Props) {
   const today = isToday(day.date);
   const past = isPastDay(day.date);
   const mutedPast = past && !today;
@@ -69,7 +70,7 @@ export function ScheduleCell({ day }: Props) {
 
       <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5 sm:gap-5 border-t border-border/60">
         {day.shifts.map((s) => (
-          <ShiftCard key={s.shift} shiftSlots={s} />
+          <ShiftCard key={s.shift} shiftSlots={s} onRemoveSlot={onRemoveSlot} />
         ))}
       </div>
     </article>

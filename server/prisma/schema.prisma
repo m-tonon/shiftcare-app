@@ -33,3 +33,14 @@ model ShiftRule {
 
   @@unique([shift, role])
 }
+
+/// Per-date staffing requirement; overrides ShiftRule for that date+shift+role when present.
+model ShiftRequirementOverride {
+  id Int @id @default(autoincrement())
+  date String
+  shift String
+  role String
+  requiredCount Int
+
+  @@unique([date, shift, role])
+}

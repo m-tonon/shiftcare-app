@@ -10,4 +10,7 @@ export const scheduleService = {
         params: weekOffset !== 0 ? { offset: weekOffset } : undefined,
       })
       .then((r) => r.data),
+
+  removeSlot: (slotId: number): Promise<void> =>
+    axios.delete(`${BASE}/schedule/slots/${slotId}`).then(() => undefined),
 };
