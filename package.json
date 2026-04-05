@@ -2,11 +2,13 @@
   "name": "shiftcare-app",
   "private": true,
   "scripts": {
+    "setup": "npm run install:all && npm run db:init",
+    "start": "npm run setup && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "install:all": "npm i && cd client && npm i && cd ../server && npm i",
-    "db:init": "cd server && npx prisma db push && npx prisma db seed",
+    "db:init": "cd server && ([ ! -f .env ] && echo 'DATABASE_URL=\"file:./dev.db\"' > .env || true) && npx prisma db push && npx prisma db seed",
     "db:reset": "cd server && npm run db:reset"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-# ShiftCare
+# ShiftCare App
 
 A responsive staff scheduling platform for care teams, built to run on both desktop and mobile — optimized for phone use on the floor.
 
@@ -9,9 +9,21 @@ A responsive staff scheduling platform for care teams, built to run on both desk
 
 ## Getting started
 
+### One command (recommended)
+
+Clone the repo and run a single command — installs all dependencies, sets up the database, and starts everything:
+
+```bash
+git clone https://github.com/m-tonon/shiftcare-app.git
+cd shiftcare-app
+npm start
+```
+
+### Step by step
+
 ```bash
 # Clone the repository
-git clone https://github.com/your-user/shiftcare-app.git
+git clone https://github.com/m-tonon/shiftcare-app.git
 cd shiftcare-app
 
 # Install all dependencies (root + client + server)
