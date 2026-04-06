@@ -13,5 +13,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0"
   }
 }
