@@ -1,5 +1,89 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { scheduleService } from './schedule.service';
 import { ChatResponse, ShiftName } from '@shared/types';
+
+const client = new Anthropic();
+
+const SYSTEM_PROMPT = `You are a scheduling assistant for a staffing app.
+
+When the user sends a message, respond ONLY with a JSON object — no explanation, no markdown, no extra text.
+
+Available actions:
+
+// Fill operations
+{ "action": "FILL_WEEK" }
+{ "action": "FILL_DAY", "day": "monday" }
+{ "action": "FILL_SHIFT", "day": "monday", "shift": "MORNING" }
+
+// Clear operations
+{ "action": "CLEAR_SHIFT", "day": "monday", "shift": "MORNING" }
+{ "action": "CLEAR_OVERRIDES", "day": "monday", "shift": "MORNING" }
+{ "action": "CLEAR_OVERRIDES", "day": "monday", "shift": null }
+
+// View operations
+{ "action": "SHOW_GAPS" }
+{ "action": "SHOW_WORKERS", "day": "monday" }
+
+// Define staffing rules for one role at a time
+{ "action": "SET_REQUIREMENT", "day": "monday", "shift": "MORNING", "role": "NURSE", "count": 3 }
+{ "action": "SET_REQUIREMENT", "day": "weekend", "shift": null, "role": "DOCTOR", "count": 1 }
+
+// Define staffing rules for multiple roles at once
+{
+  "action": "SET_REQUIREMENTS_BULK",
+  "day": "weekend",
+  "shift": null,
+  "rules": [
+    { "role": "DOCTOR", "count": 1 },
+    { "role": "NURSE", "count": 3 },
+    { "role": "RECEPTIONIST", "count": 1 },
+    { "role": "CLEANING", "count": 2 }
+  ]
+}
+
+// Swap a worker and auto-fill gaps
+{ "action": "SWAP_WORKER", "day": "monday", "shift": "MORNING", "from": "Maria", "to": "James" }
+
+// Unknown / out of scope
+{ "action": "UNKNOWN", "reply": "your helpful response here" }
+
+Rules:
+- day: monday, tuesday, wednesday, thursday, friday, saturday, sunday, or weekend
+- shift: MORNING, AFTERNOON, EVENING, or null (means all shifts)
+- role: DOCTOR, NURSE, RECEPTIONIST, TECHNICIAN, PHARMACIST, CLEANING
+- Use SET_REQUIREMENTS_BULK when the user defines multiple roles at once ("on weekends we need 2 doctors and 3 nurses")
+- Use SET_REQUIREMENT for a single role change
+- For UNKNOWN write a helpful reply with examples of what the user can ask`;
+
+type ParsedAction =
+  | { action: 'FILL_WEEK' }
+  | { action: 'FILL_DAY'; day: string }
+  | { action: 'FILL_SHIFT'; day: string; shift: ShiftName }
+  | { action: 'CLEAR_SHIFT'; day: string; shift: ShiftName }
+  | { action: 'CLEAR_OVERRIDES'; day: string; shift: ShiftName | null }
+  | { action: 'SHOW_GAPS' }
+  | { action: 'SHOW_WORKERS'; day: string }
+  | {
+      action: 'SET_REQUIREMENT';
+      day: string;
+      shift: ShiftName | null;
+      role: string;
+      count: number;
+    }
+  | {
+      action: 'SET_REQUIREMENTS_BULK';
+      day: string;
+      shift: ShiftName | null;
+      rules: { role: string; count: number }[];
+    }
+  | {
+      action: 'SWAP_WORKER';
+      day: string;
+      shift: ShiftName;
+      from: string;
+      to: string;
+    }
+  | { action: 'UNKNOWN'; reply: string };
 
 const DAYS = [
   'monday',
@@ -11,38 +95,12 @@ const DAYS = [
   'sunday',
 ] as const;
 
-const SHIFT_KEYWORDS: Record<string, ShiftName> = {
-  morning: 'MORNING',
-  afternoon: 'AFTERNOON',
-  evening: 'EVENING',
-};
-
-const ROLE_ALIASES: Record<string, string> = {
-  doctor: 'DOCTOR',
-  doctors: 'DOCTOR',
-  nurse: 'NURSE',
-  nurses: 'NURSE',
-  receptionist: 'RECEPTIONIST',
-  receptionists: 'RECEPTIONIST',
-  technician: 'TECHNICIAN',
-  technicians: 'TECHNICIAN',
-  pharmacist: 'PHARMACIST',
-  pharmacists: 'PHARMACIST',
-  cleaning: 'CLEANING',
-};
-
-// Helpers
-
-function resolveWeekDates(weekOffset: number): string[] {
-  return scheduleService.getWeekDates(weekOffset);
-}
-
 function resolveDateForDay(
-  dayName: string,
+  day: string,
   weekOffset: number,
 ): string | undefined {
-  const dates = resolveWeekDates(weekOffset);
-  const idx = DAYS.indexOf(dayName as (typeof DAYS)[number]);
+  const dates = scheduleService.getWeekDates(weekOffset);
+  const idx = DAYS.indexOf(day as (typeof DAYS)[number]);
   return idx >= 0 ? dates[idx] : undefined;
 }
 
@@ -56,263 +114,263 @@ function resolveDatesForToken(token: string, weekOffset: number): string[] {
   return d ? [d] : [];
 }
 
-function resolveShifts(shiftWord?: string): ShiftName[] {
-  return shiftWord
-    ? [SHIFT_KEYWORDS[shiftWord] as ShiftName]
-    : ['MORNING', 'AFTERNOON', 'EVENING'];
+function resolveShifts(shift: ShiftName | null): ShiftName[] {
+  return shift ? [shift] : ['MORNING', 'AFTERNOON', 'EVENING'];
 }
 
-function parseShift(msg: string): ShiftName | undefined {
-  return Object.entries(SHIFT_KEYWORDS).find(([key]) => msg.includes(key))?.[1];
-}
+async function parseWithClaude(message: string): Promise<ParsedAction> {
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 512,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: message }],
+  });
 
-function parseDay(msg: string): string | undefined {
-  return DAYS.find((d) => msg.includes(d));
-}
+  const text = response.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
 
-function msgIncludes(msg: string, words: string[]): boolean {
-  return words.some((w) => msg.includes(w));
-}
-
-function normalizeRole(raw: string): string | undefined {
-  const t = raw.trim().toLowerCase().replace(/\s+/g, ' ');
-  return ROLE_ALIASES[t];
-}
-
-const UNKNOWN_ACTION: ChatResponse = {
-  reply: '',
-  action: { type: 'UNKNOWN' },
-  scheduleUpdated: false,
-};
-
-function unknownReply(reply: string): ChatResponse {
-  return { ...UNKNOWN_ACTION, reply };
-}
-
-// Intent parsers
-
-async function parseSetRequirement(
-  msg: string,
-  weekOffset: number,
-): Promise<ChatResponse | null> {
-  const m = msg.match(
-    /(?:need|require|want|set)\s+(\d+)\s+([a-z]+)\s+(?:on\s+)?(?:the\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend)(?:\s+(morning|afternoon|evening))?/i,
-  );
-
-  if (!m) return null;
-
-  const count = Number.parseInt(m[1], 10);
-  if (!Number.isFinite(count) || count < 0 || count > 50) {
-    return unknownReply('Use a sensible count between 0 and 50.');
+  try {
+    return JSON.parse(text) as ParsedAction;
+  } catch {
+    return {
+      action: 'UNKNOWN',
+      reply:
+        'Could not understand that. Try: "on weekends we need 2 doctors and 3 nurses", "fill the week", "swap Maria with James on monday morning".',
+    };
   }
-
-  const role = normalizeRole(m[2]);
-  if (!role) {
-    return unknownReply(
-      'Say a role: doctor, nurse, receptionist, technician, pharmacist, or cleaning.',
-    );
-  }
-
-  const dayToken = m[3].toLowerCase();
-  const shiftWord = m[4]?.toLowerCase();
-  const shifts = resolveShifts(shiftWord);
-  const dates = resolveDatesForToken(dayToken, weekOffset);
-
-  if (dates.length === 0) {
-    return unknownReply(
-      "Couldn't resolve that day for the week you're viewing.",
-    );
-  }
-
-  for (const date of dates) {
-    for (const shift of shifts) {
-      await scheduleService.setRequirementOverride(date, shift, role, count);
-    }
-  }
-
-  return {
-    reply: `Updated staffing rules: ${count} ${role}(s) per ${shiftWord || 'each shift (morning, afternoon, evening)'}. Say "fill the week" or "fill saturday morning" to assign people.`,
-    action: { type: 'SET_REQUIREMENT', date: dates[0], shift: shifts[0] },
-    scheduleUpdated: true,
-  };
 }
-
-async function parseClearOverrides(
-  msg: string,
-  weekOffset: number,
-): Promise<ChatResponse | null> {
-  const m = msg.match(
-    /(?:clear|remove|reset)\s+(?:override|requirement|rule)s?\s*(?:for\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(morning|afternoon|evening))?/i,
-  );
-
-  if (!m) return null;
-
-  const day = m[1].toLowerCase();
-  const shiftWord = m[2]?.toLowerCase();
-  const date = resolveDateForDay(day, weekOffset);
-
-  if (!date) {
-    return unknownReply("Couldn't resolve that day.");
-  }
-
-  const shifts = resolveShifts(shiftWord);
-  let total = 0;
-
-  for (const shift of shifts) {
-    total += await scheduleService.clearRequirementOverridesForShift(
-      date,
-      shift,
-    );
-  }
-
-  return {
-    reply:
-      total > 0
-        ? `Cleared ${total} custom requirement(s) for ${day}; default rules apply again.`
-        : `No custom overrides were stored for ${day}.`,
-    action: { type: 'CLEAR_SHIFT_OVERRIDES', date },
-    scheduleUpdated: true,
-  };
-}
-
-async function parseSwapWorker(
-  msg: string,
-  weekOffset: number,
-): Promise<ChatResponse | null> {
-  const m = msg.match(
-    /(?:swap|replace)\s+(.+?)\s+(?:with|for)\s+(.+?)\s+(?:on\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(morning|afternoon|evening)/i,
-  );
-
-  if (!m) return null;
-
-  const fromName = m[1].trim();
-  const toName = m[2].trim();
-  const day = m[3].toLowerCase();
-  const shift = SHIFT_KEYWORDS[m[4].toLowerCase()] as ShiftName;
-  const date = resolveDateForDay(day, weekOffset);
-
-  if (!date) {
-    return unknownReply("Couldn't resolve that day.");
-  }
-
-  const result = await scheduleService.swapWorkerOnShift(
-    date,
-    shift,
-    fromName,
-    toName,
-  );
-
-  return {
-    reply: result.message,
-    action: { type: 'SWAP_WORKER', date, shift, workerName: toName },
-    scheduleUpdated: result.swapped,
-  };
-}
-
-// Main dispatcher
 
 export const chatService = {
   processMessage: async (
     message: string,
     weekOffset = 0,
   ): Promise<ChatResponse> => {
-    const msg = message.toLowerCase();
+    const parsed = await parseWithClaude(message);
 
-    const day = parseDay(msg);
-    const shift = parseShift(msg);
-    const date = day ? resolveDateForDay(day, weekOffset) : undefined;
-
-    const clearOverridesResult = await parseClearOverrides(msg, weekOffset);
-    if (clearOverridesResult) return clearOverridesResult;
-
-    const setRequirementResult = await parseSetRequirement(msg, weekOffset);
-    if (setRequirementResult) return setRequirementResult;
-
-    const swapWorkerResult = await parseSwapWorker(msg, weekOffset);
-    if (swapWorkerResult) return swapWorkerResult;
-
-    if (
-      msg.includes('fill') &&
-      (msgIncludes(msg, ['week', 'all', 'schedule']) ||
-        /\bfill\s+(it|this|everything)\s+up\b/.test(msg)) &&
-      !day
-    ) {
-      const filled = await scheduleService.fillWeek(weekOffset);
-      return {
-        reply: `Filled the week (offset ${weekOffset}). Added ${filled} assignment(s).`,
-        action: { type: 'FILL_WEEK' },
-        scheduleUpdated: true,
-      };
-    }
-
-    if (msg.includes('fill') && day && !shift && date) {
-      const filled = await scheduleService.fillDay(date);
-      return {
-        reply: `Filled all shifts for ${day}. Added ${filled} new assignments.`,
-        action: { type: 'FILL_DAY', date },
-        scheduleUpdated: true,
-      };
-    }
-
-    if (msg.includes('fill') && day && shift && date) {
-      const filled = await scheduleService.fillShift(date, shift);
-      return {
-        reply: `Filled ${day} ${shift.toLowerCase()} — added ${filled} staff members.`,
-        action: { type: 'FILL_SHIFT', date, shift },
-        scheduleUpdated: true,
-      };
-    }
-
-    if (msg.includes('clear') && day && shift && date) {
-      await scheduleService.clearShift(date, shift);
-      return {
-        reply: `${day} ${shift.toLowerCase()} cleared. All workers are now unassigned for that block.`,
-        action: { type: 'CLEAR_SHIFT', date, shift },
-        scheduleUpdated: true,
-      };
-    }
-
-    if (msgIncludes(msg, ['gap', 'understaff', 'missing'])) {
-      const week = await scheduleService.getWeekSchedule(weekOffset);
-      const gaps = week.days.flatMap((d) =>
-        d.shifts
-          .filter((s) => s.isUnderstaffed)
-          .map((s) => `${d.dayLabel} ${s.shift.toLowerCase()}`),
-      );
-      return {
-        reply: gaps.length
-          ? `Found ${gaps.length} understaffed shift(s): ${gaps.join(', ')}.`
-          : `No gaps this week — all shifts meet requirements.`,
-        action: { type: 'SHOW_GAPS' },
-        scheduleUpdated: false,
-      };
-    }
-
-    if (msgIncludes(msg, ['who', 'show']) && day && date) {
-      const week = await scheduleService.getWeekSchedule(weekOffset);
-      const daySchedule = week.days.find((d) => d.date === date);
-
-      if (!daySchedule) {
-        return unknownReply(`Couldn't find schedule for ${day}.`);
+    switch (parsed.action) {
+      case 'SET_REQUIREMENT': {
+        const dates = resolveDatesForToken(parsed.day, weekOffset);
+        if (!dates.length)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const shifts = resolveShifts(parsed.shift);
+        for (const date of dates) {
+          for (const shift of shifts) {
+            await scheduleService.setRequirementOverride(
+              date,
+              shift,
+              parsed.role,
+              parsed.count,
+            );
+          }
+        }
+        return {
+          reply: `Set ${parsed.count} ${parsed.role}(s) per ${parsed.shift ?? 'each shift'} on ${parsed.day}. Say "fill ${parsed.day}" to assign people.`,
+          action: { type: 'SET_REQUIREMENT', date: dates[0], shift: shifts[0] },
+          scheduleUpdated: true,
+        };
       }
 
-      const lines = daySchedule.shifts.map((s) => {
-        const names = s.slots
-          .map((sl) => sl.worker?.name ?? '')
-          .filter(Boolean)
+      case 'SET_REQUIREMENTS_BULK': {
+        const dates = resolveDatesForToken(parsed.day, weekOffset);
+        if (!dates.length)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const shifts = resolveShifts(parsed.shift);
+        for (const date of dates) {
+          for (const shift of shifts) {
+            for (const rule of parsed.rules) {
+              await scheduleService.setRequirementOverride(
+                date,
+                shift,
+                rule.role,
+                rule.count,
+              );
+            }
+          }
+        }
+        const summary = parsed.rules
+          .map((r) => `${r.count} ${r.role}(s)`)
           .join(', ');
-        return `${s.shift}: ${names || 'nobody assigned'}`;
-      });
+        return {
+          reply: `Updated ${parsed.day} requirements: ${summary} per ${parsed.shift ?? 'each shift'}. Say "fill ${parsed.day}" to assign people.`,
+          action: { type: 'SET_REQUIREMENT', date: dates[0], shift: shifts[0] },
+          scheduleUpdated: true,
+        };
+      }
 
-      return {
-        reply: `${daySchedule.dayLabel}:\n${lines.join('\n')}`,
-        action: { type: 'SHOW_WORKERS', date },
-        scheduleUpdated: false,
-      };
+      case 'FILL_WEEK': {
+        const filled = await scheduleService.fillWeek(weekOffset);
+        return {
+          reply: `Filled the week. Added ${filled} assignment(s).`,
+          action: { type: 'FILL_WEEK' },
+          scheduleUpdated: true,
+        };
+      }
+
+      case 'FILL_DAY': {
+        const date = resolveDateForDay(parsed.day, weekOffset);
+        if (!date)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const filled = await scheduleService.fillDay(date);
+        return {
+          reply: `Filled all shifts for ${parsed.day}. Added ${filled} assignment(s).`,
+          action: { type: 'FILL_DAY', date },
+          scheduleUpdated: true,
+        };
+      }
+
+      case 'FILL_SHIFT': {
+        const date = resolveDateForDay(parsed.day, weekOffset);
+        if (!date)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const filled = await scheduleService.fillShift(date, parsed.shift);
+        return {
+          reply: `Filled ${parsed.day} ${parsed.shift.toLowerCase()} — added ${filled} staff.`,
+          action: { type: 'FILL_SHIFT', date, shift: parsed.shift },
+          scheduleUpdated: true,
+        };
+      }
+
+      case 'CLEAR_SHIFT': {
+        const date = resolveDateForDay(parsed.day, weekOffset);
+        if (!date)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        await scheduleService.clearShift(date, parsed.shift);
+        return {
+          reply: `${parsed.day} ${parsed.shift.toLowerCase()} cleared.`,
+          action: { type: 'CLEAR_SHIFT', date, shift: parsed.shift },
+          scheduleUpdated: true,
+        };
+      }
+
+      case 'CLEAR_OVERRIDES': {
+        const date = resolveDateForDay(parsed.day, weekOffset);
+        if (!date)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const shifts = resolveShifts(parsed.shift);
+        let total = 0;
+        for (const shift of shifts) {
+          total += await scheduleService.clearRequirementOverridesForShift(
+            date,
+            shift,
+          );
+        }
+        return {
+          reply:
+            total > 0
+              ? `Cleared ${total} override(s) for ${parsed.day}.`
+              : `No overrides found for ${parsed.day}.`,
+          action: { type: 'CLEAR_SHIFT_OVERRIDES', date },
+          scheduleUpdated: true,
+        };
+      }
+
+      case 'SHOW_GAPS': {
+        const week = await scheduleService.getWeekSchedule(weekOffset);
+        const gaps = week.days.flatMap((d) =>
+          d.shifts
+            .filter((s) => s.isUnderstaffed)
+            .map((s) => `${d.dayLabel} ${s.shift.toLowerCase()}`),
+        );
+        return {
+          reply: gaps.length
+            ? `Understaffed: ${gaps.join(', ')}.`
+            : 'No gaps — all shifts are covered.',
+          action: { type: 'SHOW_GAPS' },
+          scheduleUpdated: false,
+        };
+      }
+
+      case 'SHOW_WORKERS': {
+        const date = resolveDateForDay(parsed.day, weekOffset);
+        if (!date)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const week = await scheduleService.getWeekSchedule(weekOffset);
+        const day = week.days.find((d) => d.date === date);
+        if (!day)
+          return {
+            reply: `No schedule found for ${parsed.day}.`,
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const lines = day.shifts.map((s) => {
+          const names = s.slots
+            .map((sl) => sl.worker?.name ?? '')
+            .filter(Boolean)
+            .join(', ');
+          return `${s.shift}: ${names || 'nobody assigned'}`;
+        });
+        return {
+          reply: `${day.dayLabel}:\n${lines.join('\n')}`,
+          action: { type: 'SHOW_WORKERS', date },
+          scheduleUpdated: false,
+        };
+      }
+
+      case 'SWAP_WORKER': {
+        const date = resolveDateForDay(parsed.day, weekOffset);
+        if (!date)
+          return {
+            reply: "Couldn't resolve that day.",
+            action: { type: 'UNKNOWN' },
+            scheduleUpdated: false,
+          };
+        const result = await scheduleService.swapWorkerOnShift(
+          date,
+          parsed.shift,
+          parsed.from,
+          parsed.to,
+        );
+        return {
+          reply: result.message,
+          action: {
+            type: 'SWAP_WORKER',
+            date,
+            shift: parsed.shift,
+            workerName: parsed.to,
+          },
+          scheduleUpdated: result.swapped,
+        };
+      }
+
+      case 'UNKNOWN':
+      default:
+        return {
+          reply:
+            parsed.reply ??
+            'Try: "on weekends we need 2 doctors and 3 nurses", "fill the week", "swap Maria with James on monday morning", "any gaps".',
+          action: { type: 'UNKNOWN' },
+          scheduleUpdated: false,
+        };
     }
-
-    return unknownReply(
-      `Try: "fill the week", "need 3 doctors on saturday morning", "swap Maria with James on monday morning", "clear overrides monday morning", "any gaps", or "who is working tuesday".`,
-    );
   },
 };
