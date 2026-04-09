@@ -129,30 +129,58 @@ function safeJsonParse(text: string): ParsedAction {
   return JSON.parse(match[0]);
 }
 
-async function parseWithGemini(message: string): Promise<ParsedAction> {
-  const response = await genAI.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: `${SYSTEM_PROMPT}\n\nUser message: ${message}`,
-  });
+async function parseSchedulingIntent(message: string): Promise<ParsedAction> {
+  const maxRetries = 3;
 
-  const text = response.text;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await genAI.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        contents: `${SYSTEM_PROMPT}\n\nUser message: ${message}`,
+      });
 
-  if (!text) {
-    return {
-      action: 'UNKNOWN',
-      reply: 'Empty response from AI. Try again or rephrase your request.',
-    };
+      const text = response.text;
+
+      if (!text) {
+        throw new Error('Empty response');
+      }
+
+      return safeJsonParse(text);
+    } catch (err: any) {
+      const status = err?.status || err?.error?.status;
+
+      const isRetryable =
+        status === 'RESOURCE_EXHAUSTED' || status === 'UNAVAILABLE';
+
+      const isLastAttempt = attempt === maxRetries - 1;
+
+      if (!isRetryable || isLastAttempt) {
+        console.error('AI failed:', {
+          status,
+          message: err?.message,
+        });
+
+        return {
+          action: 'UNKNOWN',
+          reply:
+            status === 'RESOURCE_EXHAUSTED'
+              ? 'Too many requests right now. Please wait a moment and try again.'
+              : status === 'UNAVAILABLE'
+                ? 'AI is currently overloaded. Try again in a few seconds.'
+                : 'Could not understand that. Try: "fill the week", "swap Maria with James on monday morning".',
+        };
+      }
+
+      // ⏳ exponential backoff
+      const delay = 500 * Math.pow(2, attempt);
+      await new Promise((res) => setTimeout(res, delay));
+    }
   }
 
-  try {
-    return safeJsonParse(text);
-  } catch {
-    return {
-      action: 'UNKNOWN',
-      reply:
-        'Could not understand that. Try: "on weekends we need 2 doctors and 3 nurses", "fill the week", "swap Maria with James on monday morning".',
-    };
-  }
+  return {
+    action: 'UNKNOWN',
+    reply: 'Unexpected AI error.',
+  };
 }
 
 export const chatService = {
@@ -160,7 +188,7 @@ export const chatService = {
     message: string,
     weekOffset = 0,
   ): Promise<ChatResponse> => {
-    const parsed = await parseWithGemini(message);
+    const parsed = await parseSchedulingIntent(message);
 
     switch (parsed.action) {
       case 'SET_REQUIREMENT': {
