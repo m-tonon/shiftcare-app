@@ -1,24 +1,6 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import { workersRouter } from './routes/worker.routes';
-import { scheduleRouter } from './routes/schedule.routes';
-import { chatRouter } from './routes/chat.routes';
-import { errorMiddleware } from './middlewares/error.middleware';
+import app from './app';
 
-dotenv.config();
-
-const app = express();
 const PORT = process.env.PORT || 3001;
-
-app.use(cors({ origin: 'http://localhost:5173' }));
-app.use(express.json());
-
-app.use('/api/workers', workersRouter);
-app.use('/api/schedule', scheduleRouter);
-app.use('/api/chat', chatRouter);
-
-app.use(errorMiddleware);
 
 app.listen(PORT, () => {
   console.log('🏥 ShiftCare — Riverside Medical Clinic');
