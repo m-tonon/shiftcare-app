@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Worker } from '@shared/types';
 
-const BASE = 'http://localhost:3001/api';
+const BASE = (import.meta.env.VITE_API_URL ?? '/api') as string;
 
 export const workerService = {
   getAll: (): Promise<Worker[]> =>
