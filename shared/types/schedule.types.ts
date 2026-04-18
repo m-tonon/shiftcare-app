@@ -1,5 +1,11 @@
-import { Worker } from "./worker.types";
-import { ShiftName } from "./shift.types";
+import { Worker, Role } from './worker.types';
+import { ShiftName } from './shift.types';
+
+export interface RoleRequirement {
+  role: Role;
+  required: number;
+  actual: number;
+}
 
 export interface ScheduleSlot {
   id: number;
@@ -14,6 +20,7 @@ export interface ShiftSlots {
   slots: ScheduleSlot[];
   requiredCount: number;
   isUnderstaffed: boolean;
+  roleRequirements?: RoleRequirement[];
 }
 
 export interface DaySchedule {

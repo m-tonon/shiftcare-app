@@ -133,16 +133,28 @@ export const scheduleService = {
           const shiftSlots = slotsByDateShift.get(`${date}-${shift}`) ?? [];
           const shiftRules = rulesByShift.get(shift) ?? [];
 
-          const requiredCount = shiftRules.reduce(
-            (sum, r) =>
-              sum +
-              effectiveRequired(
-                date,
-                shift,
-                r.role,
-                r.requiredCount,
-                overrideMap,
-              ),
+          const roleRequirements = shiftRules.map((rule) => {
+            const required = effectiveRequired(
+              date,
+              shift,
+              rule.role,
+              rule.requiredCount,
+              overrideMap,
+            );
+
+            const actual = shiftSlots.filter(
+              (s) => s.worker?.role === rule.role,
+            ).length;
+
+            return {
+              role: rule.role as Role,
+              required,
+              actual,
+            };
+          });
+
+          const requiredCount = roleRequirements.reduce(
+            (sum, r) => sum + r.required,
             0,
           );
 
@@ -151,6 +163,7 @@ export const scheduleService = {
             slots: shiftSlots.map(mapSlot),
             requiredCount,
             isUnderstaffed: shiftSlots.length < requiredCount,
+            roleRequirements,
           };
         }),
       };
