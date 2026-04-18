@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Worker } from '@shared/types';
 import { ROLE_STYLES, ROLE_LABELS } from '../../constants/roles.constants';
+import { Swipeable } from '../ui/Swipeable';
 
 interface Props {
   worker: Worker;
@@ -36,41 +37,46 @@ export function WorkerRow({ worker, slotId, onRemove, readOnly }: Props) {
 
   return (
     <>
-      <div
-        className={`group flex items-center gap-3 min-h-[2.75rem] px-3 py-2.5 rounded-xl border ${
-          styles.chipBg
-        } ${styles.chipBorder} transition-all ${
-          isRemoving ? 'opacity-50' : ''
-        }`}
+      <Swipeable
+        onSwipeRight={() => setShowConfirm(true)}
+        disabled={readOnly || !onRemove}
       >
-        <span
-          className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm ${styles.avatarBg}`}
-          aria-hidden
+        <div
+          className={`group flex items-center gap-3 min-h-[2.75rem] px-3 py-2.5 rounded-xl border ${
+            styles.chipBg
+          } ${styles.chipBorder} transition-all ${
+            isRemoving ? 'opacity-50' : ''
+          }`}
         >
-          {initials}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-foreground leading-snug truncate">
-            {worker.name}
-          </p>
-          <p
-            className={`text-[12px] font-medium leading-tight mt-0.5 ${styles.chipText}`}
+          <span
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm ${styles.avatarBg}`}
+            aria-hidden
           >
-            {ROLE_LABELS[worker.role]}
-          </p>
+            {initials}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-semibold text-foreground leading-snug truncate">
+              {worker.name}
+            </p>
+            <p
+              className={`text-[12px] font-medium leading-tight mt-0.5 ${styles.chipText}`}
+            >
+              {ROLE_LABELS[worker.role]}
+            </p>
+          </div>
+          {onRemove && !readOnly && (
+            <button
+              type="button"
+              onClick={() => setShowConfirm(true)}
+              disabled={isRemoving}
+              aria-label={`Remove ${worker.name} from shift`}
+              className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-danger hover:bg-danger-bg active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+            >
+              <X size={16} strokeWidth={2.5} />
+            </button>
+          )}
         </div>
-        {onRemove && !readOnly && (
-          <button
-            type="button"
-            onClick={() => setShowConfirm(true)}
-            disabled={isRemoving}
-            aria-label={`Remove ${worker.name} from shift`}
-            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-danger hover:bg-danger-bg active:scale-95 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
-          >
-            <X size={16} strokeWidth={2.5} />
-          </button>
-        )}
-      </div>
+      </Swipeable>
 
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
