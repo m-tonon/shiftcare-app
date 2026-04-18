@@ -11,6 +11,7 @@ import { Sun, CloudSun, Moon, type LucideIcon } from 'lucide-react';
 interface Props {
   shiftSlots: ShiftSlots;
   onRemoveSlot?: (slotId: number) => void;
+  readOnly?: boolean;
 }
 
 export const SHIFT_ICONS: Record<string, LucideIcon> = {
@@ -27,7 +28,7 @@ const SHIFT_SURFACE: Record<ShiftName, string> = {
 };
 
 
-export function ShiftCard({ shiftSlots, onRemoveSlot }: Props) {
+export function ShiftCard({ shiftSlots, onRemoveSlot, readOnly }: Props) {
   const { shift, slots, requiredCount, isUnderstaffed, roleRequirements } =
     shiftSlots;
   const Icon = SHIFT_ICONS[shift];
@@ -122,6 +123,7 @@ export function ShiftCard({ shiftSlots, onRemoveSlot }: Props) {
                       worker={slot.worker}
                       slotId={slot.id}
                       onRemove={onRemoveSlot}
+                      readOnly={readOnly}
                     />
                   </li>
                 ) : null,
