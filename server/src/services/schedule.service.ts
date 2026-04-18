@@ -206,22 +206,30 @@ export const scheduleService = {
     return filled;
   },
 
-  fillDay: async (date: string): Promise<number> => {
-    const results = await Promise.all(
-      SHIFT_NAMES.map((shift) => scheduleService.fillShift(date, shift)),
-    );
+  // Supabase free tier: connection_limit = 1
+  // Sequential loops are intentional — parallel requests would block or fail.
 
-    return results.reduce((sum, r) => sum + r, 0);
+  fillDay: async (date: string): Promise<number> => {
+    let totalFilled = 0;
+
+    for (const shift of SHIFT_NAMES) {
+      const filled = await scheduleService.fillShift(date, shift);
+      totalFilled += filled;
+    }
+
+    return totalFilled;
   },
 
   fillWeek: async (weekOffset = 0): Promise<number> => {
     const dates = getWeekDates(weekOffset);
+    let totalFilled = 0;
 
-    const results = await Promise.all(
-      dates.map((date) => scheduleService.fillDay(date)),
-    );
+    for (const date of dates) {
+      const filled = await scheduleService.fillDay(date);
+      totalFilled += filled;
+    }
 
-    return results.reduce((sum, r) => sum + r, 0);
+    return totalFilled;
   },
 
   clearShift: async (date: string, shift: string): Promise<void> => {
