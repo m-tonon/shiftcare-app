@@ -2,6 +2,7 @@
   "name": "shiftcare-app",
   "private": true,
   "scripts": {
+    "vercel-build": "cd server && npm install && npx prisma generate && npm run build && cd ../client && npm install && npm run build",
     "setup": "npm run install:all && npm run db:init",
     "start": "npm run setup && npm run dev",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",

@@ -133,16 +133,28 @@ export const scheduleService = {
           const shiftSlots = slotsByDateShift.get(`${date}-${shift}`) ?? [];
           const shiftRules = rulesByShift.get(shift) ?? [];
 
-          const requiredCount = shiftRules.reduce(
-            (sum, r) =>
-              sum +
-              effectiveRequired(
-                date,
-                shift,
-                r.role,
-                r.requiredCount,
-                overrideMap,
-              ),
+          const roleRequirements = shiftRules.map((rule) => {
+            const required = effectiveRequired(
+              date,
+              shift,
+              rule.role,
+              rule.requiredCount,
+              overrideMap,
+            );
+
+            const actual = shiftSlots.filter(
+              (s) => s.worker?.role === rule.role,
+            ).length;
+
+            return {
+              role: rule.role as Role,
+              required,
+              actual,
+            };
+          });
+
+          const requiredCount = roleRequirements.reduce(
+            (sum, r) => sum + r.required,
             0,
           );
 
@@ -151,6 +163,7 @@ export const scheduleService = {
             slots: shiftSlots.map(mapSlot),
             requiredCount,
             isUnderstaffed: shiftSlots.length < requiredCount,
+            roleRequirements,
           };
         }),
       };
@@ -206,26 +219,39 @@ export const scheduleService = {
     return filled;
   },
 
-  fillDay: async (date: string): Promise<number> => {
-    const results = await Promise.all(
-      SHIFT_NAMES.map((shift) => scheduleService.fillShift(date, shift)),
-    );
+  // Supabase free tier: connection_limit = 1
+  // Sequential loops are intentional — parallel requests would block or fail.
 
-    return results.reduce((sum, r) => sum + r, 0);
+  fillDay: async (date: string): Promise<number> => {
+    let totalFilled = 0;
+
+    for (const shift of SHIFT_NAMES) {
+      const filled = await scheduleService.fillShift(date, shift);
+      totalFilled += filled;
+    }
+
+    return totalFilled;
   },
 
   fillWeek: async (weekOffset = 0): Promise<number> => {
     const dates = getWeekDates(weekOffset);
+    let totalFilled = 0;
 
-    const results = await Promise.all(
-      dates.map((date) => scheduleService.fillDay(date)),
-    );
+    for (const date of dates) {
+      const filled = await scheduleService.fillDay(date);
+      totalFilled += filled;
+    }
 
-    return results.reduce((sum, r) => sum + r, 0);
+    return totalFilled;
   },
 
   clearShift: async (date: string, shift: string): Promise<void> => {
     await scheduleRepository.clearShift(date, shift);
+  },
+
+  clearWeek: async (weekOffset = 0): Promise<void> => {
+    const dates = getWeekDates(weekOffset);
+    await scheduleRepository.clearDates(dates);
   },
 
   setRequirementOverride: async (

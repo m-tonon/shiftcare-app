@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { WeekSchedule } from '@shared/types';
 
-const BASE = 'http://localhost:3001/api';
+const BASE = (import.meta.env.VITE_API_URL ?? '/api') as string;
 
 export const scheduleService = {
   getWeek: (weekOffset = 0): Promise<WeekSchedule> =>

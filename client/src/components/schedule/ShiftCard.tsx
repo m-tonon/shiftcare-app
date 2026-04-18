@@ -11,6 +11,7 @@ import { Sun, CloudSun, Moon, type LucideIcon } from 'lucide-react';
 interface Props {
   shiftSlots: ShiftSlots;
   onRemoveSlot?: (slotId: number) => void;
+  readOnly?: boolean;
 }
 
 export const SHIFT_ICONS: Record<string, LucideIcon> = {
@@ -26,46 +27,48 @@ const SHIFT_SURFACE: Record<ShiftName, string> = {
   EVENING: 'bg-[var(--shift-evening-bg)] border-[var(--shift-evening-border)]',
 };
 
-function orderedRolesWithSlots(
-  slots: ScheduleSlot[],
-): { role: Role; slots: ScheduleSlot[] }[] {
-  const byRole = new Map<Role, ScheduleSlot[]>();
-  for (const slot of slots) {
-    if (!slot.worker) continue;
-    const role = slot.worker.role;
-    const list = byRole.get(role);
-    if (list) list.push(slot);
-    else byRole.set(role, [slot]);
-  }
 
-  const ordered: { role: Role; slots: ScheduleSlot[] }[] = [];
-  const seen = new Set<Role>();
-
-  for (const role of ROLE_DISPLAY_ORDER) {
-    const list = byRole.get(role);
-    if (list?.length) {
-      ordered.push({ role, slots: list });
-      seen.add(role);
-    }
-  }
-
-  for (const role of byRole.keys()) {
-    if (!seen.has(role)) {
-      const list = byRole.get(role);
-      if (list?.length) ordered.push({ role, slots: list });
-    }
-  }
-
-  return ordered;
-}
-
-export function ShiftCard({ shiftSlots, onRemoveSlot }: Props) {
-  const { shift, slots, requiredCount, isUnderstaffed } = shiftSlots;
+export function ShiftCard({ shiftSlots, onRemoveSlot, readOnly }: Props) {
+  const { shift, slots, requiredCount, isUnderstaffed, roleRequirements } =
+    shiftSlots;
   const Icon = SHIFT_ICONS[shift];
   const filled = slots.filter((s) => s.worker).length;
-  const openSlots = Math.max(0, requiredCount - filled);
 
-  const roleSections = useMemo(() => orderedRolesWithSlots(slots), [slots]);
+  const roleSections = useMemo(() => {
+    const byRole = new Map<Role, ScheduleSlot[]>();
+
+    for (const slot of slots) {
+      if (!slot.worker) continue;
+
+      const r = slot.worker.role;
+      const list = byRole.get(r) ?? [];
+
+      list.push(slot);
+      byRole.set(r, list);
+    }
+
+    const requirements = roleRequirements ?? [];
+    const allRoles = new Set<Role>([
+      ...requirements.map((r) => r.role),
+      ...Array.from(byRole.keys()),
+    ]);
+
+    const orderedRoles = ROLE_DISPLAY_ORDER.filter((r) => allRoles.has(r));
+    for (const r of allRoles) {
+      if (!ROLE_DISPLAY_ORDER.includes(r)) orderedRoles.push(r);
+    }
+
+    return orderedRoles.map((role) => {
+      const req = requirements.find((r) => r.role === role);
+      const roleSlots = byRole.get(role) ?? [];
+      return {
+        role,
+        slots: roleSlots,
+        required: req?.required ?? 0,
+        actual: req?.actual ?? roleSlots.length,
+      };
+    });
+  }, [slots, roleRequirements]);
 
   const surfaceClass = isUnderstaffed
     ? `${SHIFT_SURFACE[shift]} ring-2 ring-danger-border`
@@ -107,7 +110,7 @@ export function ShiftCard({ shiftSlots, onRemoveSlot }: Props) {
       </div>
 
       <div className="mt-5 space-y-5">
-        {roleSections.map(({ role, slots: roleSlots }) => (
+        {roleSections.map(({ role, slots: roleSlots, required, actual }) => (
           <div key={role}>
             <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground mb-2.5">
               {ROLE_LABELS[role]}
@@ -120,28 +123,27 @@ export function ShiftCard({ shiftSlots, onRemoveSlot }: Props) {
                       worker={slot.worker}
                       slotId={slot.id}
                       onRemove={onRemoveSlot}
+                      readOnly={readOnly}
                     />
                   </li>
                 ) : null,
+              )}
+
+              {actual < required && (
+                <li className="rounded-xl border border-dashed border-danger-border/30 bg-danger-border/5 px-3 py-2.5 text-[12px] font-semibold text-danger flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+                  Missing {required - actual} {ROLE_LABELS[role]}
+                  {required - actual > 1 ? 's' : ''}
+                </li>
               )}
             </ul>
           </div>
         ))}
 
-        {roleSections.length === 0 && openSlots === 0 && (
-          <p className="text-[14px] text-muted-foreground leading-relaxed">
-            No staff assigned yet.
+        {roleSections.length === 0 && (
+          <p className="text-[14px] text-muted-foreground leading-relaxed italic">
+            No staffing requirements defined.
           </p>
-        )}
-
-        {openSlots > 0 && (
-          <div className="rounded-xl border border-dashed border-black/10 bg-white/50 px-3 py-3">
-            <p className="text-[13px] font-semibold text-muted-foreground">
-              {openSlots === 1
-                ? '1 position still open'
-                : `${openSlots} positions still open`}
-            </p>
-          </div>
         )}
       </div>
     </section>

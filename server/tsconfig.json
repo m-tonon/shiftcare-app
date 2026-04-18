@@ -1,20 +1,31 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
+    "module": "commonjs",
+    "moduleResolution": "node",
     "lib": ["ES2020"],
-    "outDir": "dist",
+    "outDir": "./dist",
     "rootDir": "..",
-    "strict": true,
-    "noImplicitAny": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "baseUrl": ".",
+    "baseUrl": "..",
     "paths": {
-      "@shared/*": ["../shared/*"]
-    }
+      "@shared/*": ["shared/*"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true
   },
-  "include": ["src", "../shared", "prisma"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "../shared/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs",
+      "esModuleInterop": true
+    }
+  }
 }

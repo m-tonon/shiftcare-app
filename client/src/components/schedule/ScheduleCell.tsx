@@ -70,7 +70,12 @@ export function ScheduleCell({ day, onRemoveSlot }: Props) {
 
       <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5 sm:gap-5 border-t border-border/60">
         {day.shifts.map((s) => (
-          <ShiftCard key={s.shift} shiftSlots={s} onRemoveSlot={onRemoveSlot} />
+          <ShiftCard
+            key={s.shift}
+            shiftSlots={s}
+            onRemoveSlot={onRemoveSlot}
+            readOnly={past}
+          />
         ))}
       </div>
     </article>
