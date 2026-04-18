@@ -192,6 +192,22 @@ export const chatService = {
   ): Promise<ChatResponse> => {
     const parsed = await parseSchedulingIntent(message);
 
+    // Block changes for past weeks (auditing)
+    const isModification = ![
+      'UNKNOWN',
+      'SHOW_GAPS',
+      'SHOW_WORKERS',
+    ].includes(parsed.action);
+
+    if (weekOffset < 0 && isModification) {
+      return {
+        reply:
+          'You cannot modify schedules from past weeks. This is required for auditing purposes.',
+        action: { type: 'UNKNOWN' },
+        scheduleUpdated: false,
+      };
+    }
+
     switch (parsed.action) {
       case 'SET_REQUIREMENT': {
         const dates = resolveDatesForToken(parsed.day, weekOffset);
