@@ -236,6 +236,11 @@ export const scheduleService = {
     await scheduleRepository.clearShift(date, shift);
   },
 
+  clearWeek: async (weekOffset = 0): Promise<void> => {
+    const dates = getWeekDates(weekOffset);
+    await scheduleRepository.clearDates(dates);
+  },
+
   setRequirementOverride: async (
     date: string,
     shift: string,

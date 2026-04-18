@@ -18,6 +18,7 @@ Available actions:
 { "action": "FILL_SHIFT", "day": "monday", "shift": "MORNING" }
 
 // Clear operations
+{ "action": "CLEAR_WEEK" }
 { "action": "CLEAR_SHIFT", "day": "monday", "shift": "MORNING" }
 { "action": "CLEAR_OVERRIDES", "day": "monday", "shift": "MORNING" }
 { "action": "CLEAR_OVERRIDES", "day": "monday", "shift": null }
@@ -64,6 +65,7 @@ type ParsedAction =
   | { action: 'FILL_WEEK' }
   | { action: 'FILL_DAY'; day: string }
   | { action: 'FILL_SHIFT'; day: string; shift: ShiftName }
+  | { action: 'CLEAR_WEEK' }
   | { action: 'CLEAR_SHIFT'; day: string; shift: ShiftName }
   | { action: 'CLEAR_OVERRIDES'; day: string; shift: ShiftName | null }
   | { action: 'SHOW_GAPS' }
@@ -258,6 +260,15 @@ export const chatService = {
         return {
           reply: `Filled the week. Added ${filled} assignment(s).`,
           action: { type: 'FILL_WEEK' },
+          scheduleUpdated: true,
+        };
+      }
+
+      case 'CLEAR_WEEK': {
+        await scheduleService.clearWeek(weekOffset);
+        return {
+          reply: 'Cleared the entire week schedule.',
+          action: { type: 'FILL_WEEK' }, // We can reuse FILL_WEEK action for client to refresh the whole week
           scheduleUpdated: true,
         };
       }

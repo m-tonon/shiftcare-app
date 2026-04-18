@@ -24,6 +24,9 @@ export const scheduleRepository = {
   clearShift: (date: string, shift: string) =>
     prisma.scheduleSlot.deleteMany({ where: { date, shift } }),
 
+  clearDates: (dates: string[]) =>
+    prisma.scheduleSlot.deleteMany({ where: { date: { in: dates } } }),
+
   deleteSlot: (id: number) => prisma.scheduleSlot.delete({ where: { id } }),
 
   findOverridesInDates: (dates: string[]) =>
